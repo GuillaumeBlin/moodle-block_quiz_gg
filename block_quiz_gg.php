@@ -18,6 +18,7 @@
 defined('MOODLE_INTERNAL') || die();
 require_once(dirname(__FILE__) . '/../../config.php');
 require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+//require_once($CFG->dirroot . '/blocks/quiz_gg/statisticslib.php');
 global $CFG, $DB;
 
 /**
@@ -70,10 +71,41 @@ class block_quiz_gg extends block_base {
     $this->content->items = array();
     $this->content->icons = array();
     $this->content->footer = '';
+    $this->content->text='';
     $id=$this->page->course->id;
-    $gps=groups_get_user_groups($id);
+    $cm = $this->page->cm;//get_coursemodule_from_id('quiz', $id, 0, false, MUST_EXIST); 
+    $quiz = $DB->get_record('quiz', array('id' => $cm->instance));
+    $attemptid = optional_param('attempt',null, PARAM_INT);
+if($attemptid){
+ 	$attemptobj = quiz_attempt::create($attemptid);
+    	$uid=$attemptobj->get_userid();
+}else{
+	$uid=$USER->id;
+}
+if($this->config->reset){
+                if($attemptid){
+                        $DB->delete_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
+                $this->content->text .="Only ".$attemptid." deleted";
+                }else{
+                        $DB->delete_records('block_quiz_gg', array('blockid' => $this->instance->id));
+                $this->content->text .="All deleted";
+                }
+                $this->config->reset=0;
+                $this->instance_config_commit();
+        }
+/*
+ ob_start();
+ var_dump($DB->get_records('block_quiz_gg', array('blockid' => $this->instance->id)));
+ $result = ob_get_clean();
+ $this->content->text .="<pre>".$result."</pre>";
+*/
+    $gps=groups_get_user_groups($id,$uid);
     if(count($gps[0])!=1){
-		  $this->content->text ="You are not part of a unique group. Quiz grading will not be considered for this quiz.";
+		  if($uid!=$USER->id){
+			$this->content->text .="The current user is not part of a unique group. Quiz grading will not be considered for this quiz.";
+		  }else{
+		  	$this->content->text .="You are not part of a unique group. Quiz grading will not be considered for this quiz.";
+		  }
 		  return $this->content;
     }
     $currentgroupname = groups_get_group_name($gps[0][0]);
@@ -81,9 +113,13 @@ class block_quiz_gg extends block_base {
 	  $nbFriends=count(groups_get_members($gps[0][0]));
 	  if($nbFriends>1){
 		  $friends=array();
-		  $this->content->text .= " (i.e. with ";
+		   if($uid!=$USER->id){
+		     $this->content->text .= " (i.e. ";
+		   }else{
+                    $this->content->text .= " (i.e. with ";
+		  }
 		  for($i=0;$i<$nbFriends;$i++){
-			  if(array_values(groups_get_members($gps[0][0]))[$i]->id!=$USER->id){
+			  if($uid!=$USER->id||array_values(groups_get_members($gps[0][0]))[$i]->id!=$uid){
 				  $this->content->text .= ucfirst(array_values(groups_get_members($gps[0][0]))[$i]->firstname)." ";
 				  $this->content->text .= ucfirst(array_values(groups_get_members($gps[0][0]))[$i]->lastname).", ";	
 				  array_push($friends,array_values(groups_get_members($gps[0][0]))[$i]->id);
@@ -98,7 +134,9 @@ class block_quiz_gg extends block_base {
 		$originalid = $attemptid;
 		$alreadydone = $DB->get_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
 		if (count($alreadydone)==0){
+//			$this->content->text .="Copy done";
 			$attemptobj = quiz_attempt::create($attemptid);
+			//$qubaids = quiz_statistics_qubaids_condition($attemptobj->get_quizid(), array(),"QUIZ_ATTEMPTLAST");
 			$quizid=$attemptobj->get_quizid();
 			$dm = new question_engine_data_mapper();
         		$quba = question_engine::load_questions_usage_by_activity($attemptobj->get_attempt()->uniqueid);
@@ -142,7 +180,7 @@ class block_quiz_gg extends block_base {
             		$starts = $attemptobj->get_attempt()->timestart;
             		$ends = $attemptobj->get_attempt()->timefinish;
 			list($headers, $row) = $this->get_csv_file_data($fieldnamesforslots,
-                                      					$USER->id,
+                                      					$uid,
 							 		$attemptid,
                                                          		$attemptdata,
                                                          		$questionnames,
@@ -152,7 +190,7 @@ class block_quiz_gg extends block_base {
                 		$stepdata = array_combine($headers, $row);
                 		$stepdata = $this->explode_dot_separated_keys_to_make_subindexs($stepdata);
                		}else{
-				$stepdata['uid']=$USER->id;
+				$stepdata['uid']=$uid;
 				$stepdata['quizattempt']=$attemptid;
 				$stepdata['responses']=Array();
 			}
@@ -461,4 +499,3 @@ class block_quiz_gg extends block_base {
         return true;
     }
 }
-
