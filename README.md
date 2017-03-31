@@ -13,13 +13,13 @@ Installation
 
 To install the plugin using git, execute the following commands in the root of your Moodle install:
 
-    git clone https://github.com/GuillaumeBlin/moodle-block_quiz_gg.git your_moodle_root/blocks/quizz_gg
+    git clone https://github.com/GuillaumeBlin/moodle-block_quiz_gg.git your_moodle_root/blocks/quiz_gg
     
 Or, extract the following zip in `your_moodle_root/blocks/` as follows:
 
     cd your_moodle_root/blocks/
     wget https://github.com/GuillaumeBlin/moodle-block_quiz_gg/archive/master.zip
-    unzip -j master.zip -d quizz_gg
+    unzip -j master.zip -d quiz_gg
 
 Use
 ------------
