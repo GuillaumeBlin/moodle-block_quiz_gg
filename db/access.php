@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $capabilities = array(
-    'block/quizz_gg:myaddinstance' => array(
+    'block/quiz_gg:myaddinstance' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_BLOCK,
         'archetypes' => array(
