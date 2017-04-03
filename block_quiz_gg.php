@@ -76,23 +76,23 @@ class block_quiz_gg extends block_base {
     $cm = $this->page->cm;//get_coursemodule_from_id('quiz', $id, 0, false, MUST_EXIST); 
     $quiz = $DB->get_record('quiz', array('id' => $cm->instance));
     $attemptid = optional_param('attempt',null, PARAM_INT);
-if($attemptid){
+    if($attemptid){
  	$attemptobj = quiz_attempt::create($attemptid);
     	$uid=$attemptobj->get_userid();
-}else{
+    }else{
 	$uid=$USER->id;
-}
-if($this->config->reset){
-                if($attemptid){
-                        $DB->delete_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
-                $this->content->text .="Only ".$attemptid." deleted";
-                }else{
-                        $DB->delete_records('block_quiz_gg', array('blockid' => $this->instance->id));
-                $this->content->text .="All deleted";
-                }
-                $this->config->reset=0;
-                $this->instance_config_commit();
+    }
+    if(!empty($this->config->reset)){
+        if($attemptid){
+            $DB->delete_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
+            $this->content->text .="Only ".$attemptid." deleted";
+        }else{
+            $DB->delete_records('block_quiz_gg', array('blockid' => $this->instance->id));
+            $this->content->text .="All deleted";
         }
+        $this->config->reset=0;
+        $this->instance_config_commit();
+    }
 /*
  ob_start();
  var_dump($DB->get_records('block_quiz_gg', array('blockid' => $this->instance->id)));
@@ -101,123 +101,117 @@ if($this->config->reset){
 */
     $gps=groups_get_user_groups($id,$uid);
     if(count($gps[0])!=1){
-		  if($uid!=$USER->id){
-			$this->content->text .="The current user is not part of a unique group. Quiz grading will not be considered for this quiz.";
-		  }else{
-		  	$this->content->text .="You are not part of a unique group. Quiz grading will not be considered for this quiz.";
-		  }
-		  return $this->content;
+        if($uid!=$USER->id){
+	    $this->content->text .="The current user is not part of a unique group. Quiz grading will not be considered for this quiz.";
+	}else{
+	    $this->content->text .="You are not part of a unique group. Quiz grading will not be considered for this quiz.";
+	}
+	return $this->content;
     }
     $currentgroupname = groups_get_group_name($gps[0][0]);
     $this->content->text = "<strong> <i class='fa fa-exclamation-triangle' aria-hidden='true'></i> This test will be done for group ".$currentgroupname;
-	  $nbFriends=count(groups_get_members($gps[0][0]));
-	  if($nbFriends>1){
-		  $friends=array();
-		   if($uid!=$USER->id){
-		     $this->content->text .= " (i.e. ";
-		   }else{
-                    $this->content->text .= " (i.e. with ";
-		  }
-		  for($i=0;$i<$nbFriends;$i++){
-			  if($uid!=$USER->id||array_values(groups_get_members($gps[0][0]))[$i]->id!=$uid){
-				  $this->content->text .= ucfirst(array_values(groups_get_members($gps[0][0]))[$i]->firstname)." ";
-				  $this->content->text .= ucfirst(array_values(groups_get_members($gps[0][0]))[$i]->lastname).", ";	
-				  array_push($friends,array_values(groups_get_members($gps[0][0]))[$i]->id);
-		    }
-		  }
-		$this->content->text = substr($this->content->text,0,-2).")";
+    $nbFriends=count(groups_get_members($gps[0][0]));
+    if($nbFriends>1){
+        $friends=array();
+	if($uid!=$USER->id){
+	    $this->content->text .= " (i.e. ";
+	}else{
+            $this->content->text .= " (i.e. with ";
 	}
-	$this->content->text .="</strong>";
-	$pos=strpos($this->page->url,"mod/quiz/review.php");
-	if($pos !== false){
-		$attemptid = required_param('attempt', PARAM_INT);
-		$originalid = $attemptid;
-		$alreadydone = $DB->get_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
-		if (count($alreadydone)==0){
-//			$this->content->text .="Copy done";
-			$attemptobj = quiz_attempt::create($attemptid);
-			//$qubaids = quiz_statistics_qubaids_condition($attemptobj->get_quizid(), array(),"QUIZ_ATTEMPTLAST");
-			$quizid=$attemptobj->get_quizid();
-			$dm = new question_engine_data_mapper();
-        		$quba = question_engine::load_questions_usage_by_activity($attemptobj->get_attempt()->uniqueid);
-			$quizattemptobj = quiz_attempt::create_from_usage_id($quba->get_id());
-			$slots = $quba->get_slots();
-			$fieldnamesforslots = array();
-        		$attemptdata = array();
-        		$questionnames = array();
-        		$variants = array();
-        		$userids = array();
-            		foreach ($slots as $slot) {
-                		if (!isset($questionnames[$slot])) {
-                    			$questionnames[$slot] = array();
-                		}
-                		if (!isset($variants[$slot])) {
-                    			$variants[$slot] = array();
-                		}
-                		if (!isset($fieldnamesforslots[$slot])) {
-                    			$fieldnamesforslots[$slot] = array();
-                		}
-                		$question = $quba->get_question($slot);
-                		$questionnames[$slot] = $question->name;
-                		$variants[$slot] = $quba->get_variant($slot);
-                		$steps = $quba->get_question_attempt($slot)->get_full_step_iterator();
-                		foreach ($steps as $stepno => $step) {
-                    			$dataforthisslotandstep = $this->get_csv_step_data($question, $step);
-                    			if (!count($dataforthisslotandstep)) {
-                        			continue;
-                    			}
-                    			if (!isset($attemptdata[$stepno])) {
-                        			$attemptdata[$stepno] = array();
-                    			}
-                    			$attemptdata[$stepno][$slot] = $dataforthisslotandstep;
-                    			$thisstepslotfieldnames = array_keys($dataforthisslotandstep);
-                    			$fieldnamesforslots[$slot] = array_unique(array_merge($fieldnamesforslots[$slot], $thisstepslotfieldnames));
-                		}
-            		}
-            		$firstslot = reset($slots);
-            		// Use last step of first slot to see if this attempt was finished.
-            		$finish = $quba->get_question_attempt($firstslot)->get_last_step()->get_state()->is_finished();
-            		$starts = $attemptobj->get_attempt()->timestart;
-            		$ends = $attemptobj->get_attempt()->timefinish;
-			list($headers, $row) = $this->get_csv_file_data($fieldnamesforslots,
-                                      					$uid,
-							 		$attemptid,
-                                                         		$attemptdata,
-                                                         		$questionnames,
-                                                         		$variants,
-                                                         		$finish);
-			if(count($headers)==count($row)){
-                		$stepdata = array_combine($headers, $row);
-                		$stepdata = $this->explode_dot_separated_keys_to_make_subindexs($stepdata);
-               		}else{
-				$stepdata['uid']=$uid;
-				$stepdata['quizattempt']=$attemptid;
-				$stepdata['responses']=Array();
-			}
-			$uid=$stepdata['uid'];
-                	if(count($gps[0])==1){
-                       		$currentgroupname = groups_get_group_name($gps[0][0]);
-                       		$nbFriends=count(groups_get_members($gps[0][0]));
-                       		if($nbFriends>1){
-                               		for($i=0;$i<$nbFriends;$i++){
-                                       		$stepdata['uid']=array_values(groups_get_members($gps[0][0]))[$i]->id;
-                                       		if($uid!=$stepdata['uid']){
-                                               		$userid = $stepdata['uid'];
-                                              		$attemptid = $this->start_attempt($stepdata, $userid, $starts,$quizid);
-                                              		$this->attempt_step($stepdata, $attemptid,$ends);
-                                       		}
-                               		}
-                       		}
-               		}
-			$DB->insert_record('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
-			$alreadydone = $DB->get_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $originalid));
-                	if (count($alreadydone)==0){
-				$DB->insert_record('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $originalid));
-			}
-		}
+	for($i=0;$i<$nbFriends;$i++){
+	    if($uid!=$USER->id||array_values(groups_get_members($gps[0][0]))[$i]->id!=$uid){
+	        $this->content->text .= ucfirst(array_values(groups_get_members($gps[0][0]))[$i]->firstname)." ";
+		$this->content->text .= ucfirst(array_values(groups_get_members($gps[0][0]))[$i]->lastname).", ";	
+		array_push($friends,array_values(groups_get_members($gps[0][0]))[$i]->id);
+	    }
 	}
-	return $this->content;    
+	$this->content->text = substr($this->content->text,0,-2).")";
     }
+    $this->content->text .="</strong>";
+    $pos=strpos($this->page->url,"mod/quiz/review.php");
+    if($pos !== false){
+        $attemptid = required_param('attempt', PARAM_INT);
+	$originalid = $attemptid;
+	$alreadydone = $DB->get_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
+	if (count($alreadydone)==0){
+//			$this->content->text .="Copy done";
+	    $attemptobj = quiz_attempt::create($attemptid);
+	    //$qubaids = quiz_statistics_qubaids_condition($attemptobj->get_quizid(), array(),"QUIZ_ATTEMPTLAST");
+	    $quizid=$attemptobj->get_quizid();
+	    $dm = new question_engine_data_mapper();
+            $quba = question_engine::load_questions_usage_by_activity($attemptobj->get_attempt()->uniqueid);
+	    $quizattemptobj = quiz_attempt::create_from_usage_id($quba->get_id());
+	    $slots = $quba->get_slots();
+	    $fieldnamesforslots = array();
+            $attemptdata = array();
+            $questionnames = array();
+            $variants = array();
+            $userids = array();
+            foreach ($slots as $slot) {
+                if (!isset($questionnames[$slot])) {
+                    $questionnames[$slot] = array();
+                }
+                if (!isset($variants[$slot])) {
+                    $variants[$slot] = array();
+                }
+                if (!isset($fieldnamesforslots[$slot])) {
+                    $fieldnamesforslots[$slot] = array();
+                }
+                $question = $quba->get_question($slot);
+                $questionnames[$slot] = $question->name;
+                $variants[$slot] = $quba->get_variant($slot);
+                $steps = $quba->get_question_attempt($slot)->get_full_step_iterator();
+                foreach ($steps as $stepno => $step) {
+                    $dataforthisslotandstep = $this->get_csv_step_data($question, $step);
+                    if (!count($dataforthisslotandstep)) {
+                        continue;
+                    }
+                    if (!isset($attemptdata[$stepno])) {
+                        $attemptdata[$stepno] = array();
+                    }
+                    $attemptdata[$stepno][$slot] = $dataforthisslotandstep;
+                    $thisstepslotfieldnames = array_keys($dataforthisslotandstep);
+                    $fieldnamesforslots[$slot] = array_unique(array_merge($fieldnamesforslots[$slot], $thisstepslotfieldnames));
+                }
+            }
+            $firstslot = reset($slots);
+            // Use last step of first slot to see if this attempt was finished.
+            $finish = $quba->get_question_attempt($firstslot)->get_last_step()->get_state()->is_finished();
+            $starts = $attemptobj->get_attempt()->timestart;
+            $ends = $attemptobj->get_attempt()->timefinish;
+	    list($headers, $row) = $this->get_csv_file_data($fieldnamesforslots, $uid, $attemptid, $attemptdata, $questionnames, $variants, $finish);
+	    if(count($headers)==count($row)){
+                $stepdata = array_combine($headers, $row);
+                $stepdata = $this->explode_dot_separated_keys_to_make_subindexs($stepdata);
+	    }else{
+		$stepdata['uid']=$uid;
+		$stepdata['quizattempt']=$attemptid;
+		$stepdata['responses']=Array();
+	    }
+	    $uid=$stepdata['uid'];
+            if(count($gps[0])==1){
+                $currentgroupname = groups_get_group_name($gps[0][0]);
+                $nbFriends=count(groups_get_members($gps[0][0]));
+                if($nbFriends>1){
+                    for($i=0;$i<$nbFriends;$i++){
+                        $stepdata['uid']=array_values(groups_get_members($gps[0][0]))[$i]->id;
+                        if($uid!=$stepdata['uid']){
+                            $userid = $stepdata['uid'];
+                            $attemptid = $this->start_attempt($stepdata, $userid, $starts,$quizid);
+                            $this->attempt_step($stepdata, $attemptid,$ends);
+                        }
+                     }
+                 }
+            }
+            $DB->insert_record('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $attemptid));
+	    $alreadydone = $DB->get_records('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $originalid));
+            if (count($alreadydone)==0){
+	        $DB->insert_record('block_quiz_gg', array('blockid' => $this->instance->id, 'attemptid' => $originalid));
+	    }
+	}
+    }
+    return $this->content;    
+  }
 
     /**
      * Gets the data for one step for one question.
