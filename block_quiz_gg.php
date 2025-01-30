@@ -455,7 +455,7 @@ class block_quiz_gg extends block_base {
                     foreach ($fieldnames as $fieldname) {
                         $value = '';
                         $stepnocountback = $stepno;
-                        if ($fieldname{0} == '-') {
+                        if ($fieldname[0] == '-') {
                             // Behaviour data.
                             if (isset($slotscsvdata[$slot][$fieldname])) {
                                 $value = $slotscsvdata[$slot][$fieldname];
